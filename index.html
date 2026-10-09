@@ -82,6 +82,8 @@
   .ccard.main{flex-grow:.75} .ccard.area{flex-grow:1.1} .ccard.wide{flex-grow:1.7} .ccard.rel{flex-grow:1.1}
   .cl{display:flex;gap:10px;align-items:center;font-size:.85rem;color:var(--muted);white-space:nowrap;height:20px}
   .cv{direction:ltr;unicode-bidi:isolate;text-align:center;white-space:nowrap;overflow:hidden;height:44px;line-height:44px}
+  .said{font-size:.86rem;text-align:center;line-height:1.35;min-height:2.7em}
+  .said b{font-variant-numeric:tabular-nums}
   .warn{color:var(--ink);background:#FFF6E8;border-right:3px solid var(--a);padding:0 8px;border-radius:3px}
   .warn:empty{display:none}
 
@@ -151,7 +153,8 @@
     </div>
     <div class="group toggles">
       <button class="chip" id="tFull" aria-pressed="true">F המלא</button>
-      <button class="chip" id="tStrip" aria-pressed="false">משיק</button>
+      <button class="chip" id="tTan" aria-pressed="false">משיק וקשר ל־f</button>
+      <button class="chip" id="tStrip" aria-pressed="false">רצועת שטח</button>
       <button class="chip" id="tMarks" aria-pressed="false">קיצון ופיתול</button>
     </div>
   </div>
@@ -171,7 +174,7 @@
     <div class="card ccard main"><div class="cl">ערך מצטבר</div><div class="cv" id="cMain"></div></div>
     <div class="card ccard area"><div class="cl">לפי שטחים <span class="warn" id="note"></span></div><div class="cv" id="cArea"></div></div>
     <div class="card ccard wide" id="formulaCard"><div class="cl">לפי הנוסחה של F</div><div class="cv" id="cFormula"></div></div>
-    <div class="card ccard rel"><div class="cl">הקשר בין F ל־f</div><div class="cv" id="cRel"></div></div>
+    <div class="card ccard rel"><div class="cl">השיפוע של F</div><div class="cv" id="cRel"></div><div class="said" id="cRelText"></div></div>
   </section>
 
   <section class="card controls">
@@ -411,7 +414,7 @@ const PRESETS = [
 ];
 
 const $ = s => document.querySelector(s);
-const S = { p:null, dom:[0,1], a:0, x:0, full:true, strip:false, marks:false, playing:false, drag:null };
+const S = { p:null, dom:[0,1], a:0, x:0, full:true, tan:false, strip:false, marks:false, playing:false, drag:null };
 let G = {};
 const SC = {};
 
@@ -652,8 +655,16 @@ function drawTop(V){
   s += `<path class="fcurve" d="${pathFrom(Array.from(G.ts, (t,i) => [t, G.fs[i]]), sc)}"/></g>`;
   const X = sc.sx(x);
   s += `<line class="xline" x1="${n2(X)}" y1="${sc.pad.t}" x2="${n2(X)}" y2="${H-sc.pad.b}"/>`;
-  if(isFinite(V.fx) && V.fx >= sc.yr[0] && V.fx <= sc.yr[1])
-    s += `<circle cx="${n2(X)}" cy="${n2(sc.sy(V.fx))}" r="5.5" fill="var(--ink)" stroke="#fff" stroke-width="2"/>`;
+  if(isFinite(V.fx) && V.fx >= sc.yr[0] && V.fx <= sc.yr[1]){
+    const Yf = sc.sy(V.fx);
+    if(S.tan){
+      s += `<circle cx="${n2(X)}" cy="${n2(Yf)}" r="8" fill="var(--f)" stroke="#fff" stroke-width="2.5"/>`;
+      const lab = 'f(x) = ' + dm(fmt(V.fx)), right = X + 16 + lab.length*8 < W - sc.pad.r;
+      s += `<text class="tick" x="${n2(right ? X+14 : X-14)}" y="${n2(Yf + (Yf < sc.pad.t+26 ? 22 : -12))}" text-anchor="${right ? 'start' : 'end'}" style="fill:var(--f);font-weight:700;font-size:14px">${lab}</text>`;
+    } else {
+      s += `<circle cx="${n2(X)}" cy="${n2(Yf)}" r="5.5" fill="var(--ink)" stroke="#fff" stroke-width="2"/>`;
+    }
+  }
   const lab = 'x = ' + dm(fmt(x)), lw = lab.length*7 + 14, lx = clamp(X - lw/2, sc.pad.l, W - sc.pad.r - lw);
   s += `<rect x="${n2(lx)}" y="0" width="${lw}" height="20" rx="10" fill="var(--ink)"/>`;
   s += `<text x="${n2(lx+lw/2)}" y="14" text-anchor="middle" style="fill:#fff;font-weight:600">${lab}</text>`;
@@ -689,16 +700,29 @@ function drawBottom(V){
   s += '</g>';
   const X = sc.sx(x), Y = sc.sy(V.undef ? interpC(x)-Ca : V.F);
   s += `<line class="xline" x1="${n2(X)}" y1="${sc.pad.t}" x2="${n2(X)}" y2="${H-sc.pad.b}"/>`;
-  if(S.strip && isFinite(V.fx) && !V.undef){
+  if(S.tan && isFinite(V.fx) && !V.undef){
     let ux = sc.kx, uy = -V.fx*sc.ky; const L = Math.hypot(ux,uy); ux = ux/L*80; uy = uy/L*80;
     s += `<line class="tan" x1="${n2(X-ux)}" y1="${n2(Y-uy)}" x2="${n2(X+ux)}" y2="${n2(Y+uy)}"/>`;
-  }
+    }
   const A = sc.sx(a), A0 = sc.sy(0);
   s += `<circle cx="${n2(A)}" cy="${n2(A0)}" r="7" fill="#fff" stroke="var(--a)" stroke-width="3" style="cursor:grab"/>`;
   if(!V.undef){
     s += `<circle cx="${n2(X)}" cy="${n2(Y)}" r="6.5" fill="var(--F)" stroke="#fff" stroke-width="2"/>`;
-    const lab = 'F(x) = ' + dm(fmt(V.F)), right = X + 14 + lab.length*7.5 < W - sc.pad.r;
-    s += `<text class="tick" x="${n2(right ? X+12 : X-12)}" y="${n2(Y + (Y < sc.pad.t+24 ? 20 : -10))}" text-anchor="${right ? 'start' : 'end'}" style="fill:var(--F);font-weight:700;font-size:13px">${lab}</text>`;
+    const lab = 'F(x) = ' + dm(fmt(V.F));
+    const put = (side, dy, txt, size) => `<text class="tick" x="${n2(side === 'L' ? X-12 : X+12)}" y="${n2(clamp(Y+dy, sc.pad.t+12, H-sc.pad.b-4))}" text-anchor="${side === 'L' ? 'end' : 'start'}" style="fill:var(--F);font-weight:700;font-size:${size}px">${txt}</text>`;
+    if(S.tan && isFinite(V.fx)){
+      // שתי התוויות ברביעים שהמשיק לא עובר בהם
+      const pos = V.fx >= 0, roomL = X - 120 > sc.pad.l, roomR = X + 120 < W - sc.pad.r;
+      const up = side => side === 'L' ? pos : !pos;
+      const sT = roomL ? 'L' : 'R', sF = sT === 'L' ? (roomR ? 'R' : 'L') : (roomL ? 'L' : 'R');
+      const stacked = sT === sF;
+      s += put(sT, up(sT) ? -14 : 22, 'F′(x) = ' + dm(fmt(V.fx)), 14);
+      const dyF = up(sF) ? (stacked ? -32 : -14) : (stacked ? 40 : 22);
+      if(!stacked || (Y+dyF > sc.pad.t+12 && Y+dyF < H-sc.pad.b-4)) s += put(sF, dyF, lab, 13);
+    } else {
+      const right = X + 14 + lab.length*7.5 < W - sc.pad.r;
+      s += put(right ? 'R' : 'L', Y < sc.pad.t+24 ? 20 : -10, lab, 13);
+    }
   }
   svg.innerHTML = s;
 }
@@ -761,7 +785,15 @@ function sideText(V){
   if(V.undef) $('#cArea').textContent = '—';
   else { tex($('#cArea'), areaCalcTex(V)); fit($('#cArea'), 1.35); }
   if(ft){ tex($('#cFormula'), ft); fit($('#cFormula'), 1.3); }
-  tex($('#cRel'), isFinite(V.fx) ? `F'(${xx})=f(${xx})=${fmt(V.fx)}` : `f(${xx})\\ \\text{לא מוגדר}`);
+  if(isFinite(V.fx)){
+    const v = fmt(V.fx);
+    tex($('#cRel'), String.raw`\textcolor{#8A3FA0}{F'(${xx})}=\textcolor{#1F5FA8}{f(${xx})}=\mathbf{${v}}`);
+    const trend = v === '0' ? '' : (V.fx > 0 ? ', ולכן F עולה' : ', ולכן F יורדת');
+    $('#cRelText').innerHTML = `השיפוע של F בנקודה <bdi dir="ltr">x = ${dm(xx)}</bdi> הוא <b><bdi dir="ltr">${dm(v)}</bdi></b>${trend}.`;
+  } else {
+    tex($('#cRel'), `f(${xx})=\\text{?}`);
+    $('#cRelText').textContent = 'f לא מוגדרת בנקודה הזאת.';
+  }
   fit($('#cRel'), 1.35);
   $('#note').textContent = V.undef ? 'f לא מוגדרת בחלק מהקטע'
     : (S.x < S.a - 1e-9 ? 'x < a: שטח מעל הציר מחסיר' : '');
@@ -906,7 +938,7 @@ function init(){
   $('#dMin').addEventListener('change', onDomainInput);
   $('#dMax').addEventListener('change', onDomainInput);
   $('#fit').addEventListener('click', fitGraph);
-  toggle('#tFull','full'); toggle('#tStrip','strip'); toggle('#tMarks','marks');
+  toggle('#tFull','full'); toggle('#tTan','tan'); toggle('#tStrip','strip'); toggle('#tMarks','marks');
   $('#play').addEventListener('click', play);
   $('#reset').addEventListener('click', () => S.p.id === 'custom' ? showCustom() : setPreset(S.p));
   attach($('#pf'), 'f'); attach($('#pF'), 'F');
